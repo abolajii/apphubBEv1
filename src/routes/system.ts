@@ -24,6 +24,8 @@ router.get("/health", SystemController.getSystemHealth);
 
 router.get("/stats", SystemController.getSystemStats);
 
+router.get("/metrics", SystemController.getSystemMetrics);
+
 // Data export route
 router.get(
   "/export",

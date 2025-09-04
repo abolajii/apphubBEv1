@@ -115,6 +115,24 @@ const SystemController = {
       );
     }
   },
+
+  getSystemMetrics: async (req: Request, res: Response) => {
+    try {
+      const metrics = await SystemService.getSystemMetrics();
+
+      return sendSuccess(res, {
+        message: "System metrics retrieved successfully",
+        ...metrics,
+      });
+    } catch (err: any) {
+      console.log("[ERROR - SystemController.getSystemMetrics]", err);
+      return sendInternalServerError(
+        res,
+        "Failed to retrieve system metrics",
+        err.message
+      );
+    }
+  },
 };
 
 export default SystemController;
