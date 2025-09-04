@@ -373,6 +373,36 @@ const ApplicationController = {
       );
     }
   },
+
+  healthUpdate: async (req: Request, res: Response) => {
+    try {
+      const { appId, healthy } = req.body;
+
+      // Validate required fields
+      if (!appId) {
+        return sendBadRequest(res, "Application ID is required");
+      }
+
+      if (typeof healthy !== "boolean") {
+        return sendBadRequest(res, "Healthy status must be a boolean value");
+      }
+
+      const result = await ApplicationService.updateHealth(appId, healthy);
+
+      if (!result.success) {
+        return sendNotFound(res, result.message);
+      }
+
+      return sendSuccess(res, result.data, result.message);
+    } catch (err: any) {
+      console.log("[ERROR - ApplicationController.healthUpdate]", err);
+      return sendInternalServerError(
+        res,
+        "Health update operation failed",
+        err.message
+      );
+    }
+  },
 };
 
 export { ApplicationController };

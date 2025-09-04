@@ -69,6 +69,14 @@ const ApplicationService = {
         images: data.images || { small: [], large: [] },
       };
 
+      // Auto-update link field when backendUrl is provided
+      if (data.backendUrl) {
+        // Remove trailing slash if exists, then add /health
+        const cleanBackendUrl = data.backendUrl.replace(/\/+$/, "");
+        applicationData.link = `${cleanBackendUrl}/health`;
+        console.log(`[INFO] Auto-setting link to: ${applicationData.link}`);
+      }
+
       // Handle image uploads if provided
       const uploadedImages: { small: string[]; large: string[] } = {
         small: [],
@@ -297,44 +305,55 @@ const ApplicationService = {
 
       // Prepare update data - handle all updatable fields
       const updateData: any = {};
-      
+
       // Basic info fields
       if (data.name !== undefined) updateData.name = data.name;
-      if (data.description !== undefined) updateData.description = data.description;
+      if (data.description !== undefined)
+        updateData.description = data.description;
       if (data.bg !== undefined) updateData.bg = data.bg;
       if (data.link !== undefined) updateData.link = data.link;
-      
+
       // Stack handling - convert array to string if needed
       if (data.stacks !== undefined) {
         updateData.stacks = Array.isArray(data.stacks)
           ? data.stacks.join(", ")
           : data.stacks;
       }
-      
+
       // Boolean and status fields
       if (data.onGoing !== undefined) updateData.onGoing = data.onGoing;
       if (data.status !== undefined) updateData.status = data.status;
-      
+
       // Numeric fields
       if (data.uptime !== undefined) updateData.uptime = data.uptime;
       if (data.downtime !== undefined) updateData.downtime = data.downtime;
-      
+
       // Date fields
       if (data.lastChecked !== undefined) {
         updateData.lastChecked = new Date(data.lastChecked);
       }
-      
+
       // URL fields - all three URL types
       if (data.link !== undefined) updateData.link = data.link; // This might be legacy, keeping for compatibility
-      if (data.frontendUrl !== undefined) updateData.frontendUrl = data.frontendUrl;
-      if (data.backendUrl !== undefined) updateData.backendUrl = data.backendUrl;
+      if (data.frontendUrl !== undefined)
+        updateData.frontendUrl = data.frontendUrl;
+      if (data.backendUrl !== undefined)
+        updateData.backendUrl = data.backendUrl;
       if (data.githubUrl !== undefined) updateData.githubUrl = data.githubUrl;
-      
+
+      // Auto-update link field when backendUrl is provided
+      if (data.backendUrl !== undefined) {
+        // Remove trailing slash if exists, then add /health
+        const cleanBackendUrl = data.backendUrl.replace(/\/+$/, "");
+        updateData.link = `${cleanBackendUrl}/health`;
+        console.log(`[INFO] Auto-updating link to: ${updateData.link}`);
+      }
+
       // Image data
       if (data.images !== undefined) {
         updateData.images = data.images;
       }
-      
+
       // Note: appId is intentionally excluded from updates to maintain unique identifier integrity
 
       await application.update(updateData);
@@ -711,6 +730,66 @@ const ApplicationService = {
       };
     } catch (err: any) {
       console.log("[ERROR - ApplicationService.updateStatus]", err);
+      throw err;
+    }
+  },
+
+  updateHealth: async (appId: string, healthy: boolean) => {
+    try {
+      // Check if application exists
+      const application = await Application.findOne({
+        where: { appId: appId },
+      });
+
+      if (!application) {
+        return {
+          success: false,
+          message: "Application not found",
+        };
+      }
+
+      // Calculate uptime/downtime increment (in seconds, you can adjust this)
+      const healthCheckInterval = 60; // 60 seconds increment per health check
+
+      let updateData: any = {
+        lastChecked: new Date(),
+      };
+
+      if (healthy) {
+        // If healthy, increment uptime
+        updateData.uptime = application.uptime + healthCheckInterval;
+        console.log(
+          `[INFO] App ${appId} is healthy - updating uptime to ${updateData.uptime}`
+        );
+      } else {
+        // If unhealthy, increment downtime
+        updateData.downtime = application.downtime + healthCheckInterval;
+        console.log(
+          `[INFO] App ${appId} is unhealthy - updating downtime to ${updateData.downtime}`
+        );
+      }
+
+      // Update the application
+      await application.update(updateData);
+
+      // Get the updated application
+      const updatedApplication = await Application.findOne({
+        where: { appId: appId },
+      });
+
+      return {
+        success: true,
+        message: `Application health updated successfully - ${
+          healthy ? "uptime" : "downtime"
+        } incremented`,
+        data: {
+          ...parseApplicationImages(updatedApplication),
+          healthStatus: healthy ? "healthy" : "unhealthy",
+          increment: healthCheckInterval,
+        },
+      };
+    } catch (err: any) {
+      console.log("[ERROR - ApplicationService.updateHealth]", err);
       throw err;
     }
   },

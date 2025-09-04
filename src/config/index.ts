@@ -18,7 +18,9 @@ export const dbConfig = {
 };
 
 export const authConfig = {
-  jwtSecret: process.env.JWT_SECRET || "your-super-secret-jwt-key-change-this-in-production",
+  jwtSecret:
+    process.env.JWT_SECRET ||
+    "your-super-secret-jwt-key-change-this-in-production",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
 };
 
@@ -43,14 +45,15 @@ export const serverConfig = {
 export const apiConfig = {
   prodUrl: process.env.API_LOG,
   testUrl: process.env.TEST_ENV,
-  baseUrl: process.env.NODE_ENV === "production" 
-    ? process.env.API_LOG
-    : process.env.TEST_ENV,
+  baseUrl:
+    process.env.NODE_ENV === "production"
+      ? process.env.API_LOG
+      : process.env.TEST_ENV,
 };
 
 export const appConfig = {
-  appId: process.env.APPID ? parseInt(process.env.APPID) : 1,
-  appName: process.env.APPNAME,
+  appId: process.env.APPID || "SYSTEM",
+  appName: process.env.APPNAME || "Default Application",
 };
 
 export default {

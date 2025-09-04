@@ -46,6 +46,7 @@ router.patch(
   ApplicationController.updateStatus
 );
 router.post("/:appId/sample-data", ApplicationController.createSampleData);
+router.post("/health-update", ApplicationController.healthUpdate);
 router.post(
   "/upload-image",
   upload.single("image"),
