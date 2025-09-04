@@ -24,7 +24,7 @@ app.use("/api/", limiter);
 
 app.use(
   cors({
-    origin: "http://apphub.inabsolutions.com/",
+    origin: "http://apphub.inabsolutions.com",
   })
 );
 
