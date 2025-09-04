@@ -31,6 +31,8 @@ const corsOptions: CorsOptions = {
     const allowedOrigins = [
       "https://apphub.inabsolutions.com",
       "http://apphub.inabsolutions.com",
+      "http://localhost:3000",
+      "http://localhost:5174",
     ];
 
     if (!origin) {

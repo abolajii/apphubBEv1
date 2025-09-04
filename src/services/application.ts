@@ -295,30 +295,47 @@ const ApplicationService = {
         };
       }
 
-      // Prepare update data
+      // Prepare update data - handle all updatable fields
       const updateData: any = {};
+      
+      // Basic info fields
       if (data.name !== undefined) updateData.name = data.name;
-      if (data.description !== undefined)
-        updateData.description = data.description;
+      if (data.description !== undefined) updateData.description = data.description;
       if (data.bg !== undefined) updateData.bg = data.bg;
       if (data.link !== undefined) updateData.link = data.link;
+      
+      // Stack handling - convert array to string if needed
       if (data.stacks !== undefined) {
         updateData.stacks = Array.isArray(data.stacks)
           ? data.stacks.join(", ")
           : data.stacks;
       }
+      
+      // Boolean and status fields
       if (data.onGoing !== undefined) updateData.onGoing = data.onGoing;
       if (data.status !== undefined) updateData.status = data.status;
+      
+      // Numeric fields
       if (data.uptime !== undefined) updateData.uptime = data.uptime;
       if (data.downtime !== undefined) updateData.downtime = data.downtime;
-      if (data.lastChecked !== undefined)
+      
+      // Date fields
+      if (data.lastChecked !== undefined) {
         updateData.lastChecked = new Date(data.lastChecked);
-      if (data.url !== undefined) updateData.url = data.url;
-      if (data.frontendUrl !== undefined)
-        updateData.frontendUrl = data.frontendUrl;
+      }
+      
+      // URL fields - all three URL types
+      if (data.link !== undefined) updateData.link = data.link; // This might be legacy, keeping for compatibility
+      if (data.frontendUrl !== undefined) updateData.frontendUrl = data.frontendUrl;
+      if (data.backendUrl !== undefined) updateData.backendUrl = data.backendUrl;
+      if (data.githubUrl !== undefined) updateData.githubUrl = data.githubUrl;
+      
+      // Image data
       if (data.images !== undefined) {
         updateData.images = data.images;
       }
+      
+      // Note: appId is intentionally excluded from updates to maintain unique identifier integrity
 
       await application.update(updateData);
 
