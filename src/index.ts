@@ -138,7 +138,7 @@ app.get(
         const responseTime = Date.now() - startTime;
 
         // Log application not found
-        createLog(appId, `Application ${appId}`, {
+        createLog(appId, application!.name, {
           logType: "error",
           message: "Application not found for ping",
           statusCode: 404,

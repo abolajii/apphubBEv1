@@ -1,5 +1,5 @@
 import axios from "axios";
-import { apiConfig, appConfig } from "../config/index";
+import { apiConfig } from "../config/index";
 
 const baseUrl = apiConfig.baseUrl;
 

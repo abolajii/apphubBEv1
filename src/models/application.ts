@@ -59,7 +59,6 @@ Application.init(
     id: {
       type: DataTypes.INTEGER.UNSIGNED,
       autoIncrement: true,
-      primaryKey: true,
     },
     bg: {
       type: DataTypes.STRING(255),
@@ -89,6 +88,7 @@ Application.init(
     appId: {
       type: DataTypes.STRING(20),
       allowNull: false,
+      primaryKey: true,
       unique: true,
     },
     status: {
