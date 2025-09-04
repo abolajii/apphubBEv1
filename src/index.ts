@@ -130,57 +130,203 @@ app.get(
     const { appId } = req.params;
 
     try {
-      const responseTime = Date.now() - startTime;
-      const pingData = {
-        status: "pinged",
-        appId: appId,
-        timestamp: new Date().toISOString(),
-        responseTime: responseTime,
-      };
+      // First, fetch the application to ensure it exists and get its URL
+      const { Application } = await import("./models/application");
+      const application = await Application.findByPk(appId);
 
-      // Log the ping
-      createLog(appId, `Application ${appId}`, {
-        logType: "info",
-        message: "Application pinged successfully",
-        statusCode: 200,
-        responseTime,
-        endpoint: `/api/v1/application/${appId}/ping`,
-        method: "GET",
-        additionalData: {
-          action: "ping",
-          pingSource: "external",
-        },
-      }).catch((err) => console.log("[WARN] Failed to log ping:", err));
+      if (!application) {
+        const responseTime = Date.now() - startTime;
 
-      // Update application health metrics (uptime + lastChecked) since ping was successful
-      updateAppHealth(appId, true).catch((err) =>
-        console.log("[WARN] Failed to update app health metrics:", err)
-      );
+        // Log application not found
+        createLog(appId, `Application ${appId}`, {
+          logType: "error",
+          message: "Application not found for ping",
+          statusCode: 404,
+          responseTime,
+          endpoint: `/api/v1/application/${appId}/ping`,
+          method: "GET",
+          additionalData: {
+            action: "ping_failed",
+            error: "Application not found",
+            appId,
+          },
+        }).catch((err) => console.log("[WARN] Failed to log ping error:", err));
 
-      return sendSuccess(res, pingData);
+        return res.status(404).json({
+          success: false,
+          message: "Application not found",
+          statusCode: 404,
+          data: { appId },
+        });
+      }
+
+      // Get the URL to ping (use the application's link field)
+      const urlToPing = application.link;
+
+      if (!urlToPing) {
+        const responseTime = Date.now() - startTime;
+
+        // Log no URL available
+        createLog(appId, application.name, {
+          logType: "error",
+          message: "No link available to ping for application",
+          statusCode: 400,
+          responseTime,
+          endpoint: `/api/v1/application/${appId}/ping`,
+          method: "GET",
+          additionalData: {
+            action: "ping_failed",
+            error: "No link configured",
+            appId,
+            appName: application.name,
+          },
+        }).catch((err) => console.log("[WARN] Failed to log ping error:", err));
+
+        return res.status(400).json({
+          success: false,
+          message: "No link configured for this application",
+          statusCode: 400,
+          data: { appId, appName: application.name },
+        });
+      }
+
+      // Perform actual HTTP ping to the application's URL
+      const pingStartTime = Date.now();
+      let pingResult;
+      let actualResponseTime;
+
+      try {
+        const response = await fetch(urlToPing, {
+          method: "GET",
+          headers: {
+            "User-Agent": "AppHub-Ping-Service/1.0",
+          },
+          signal: AbortSignal.timeout(10000), // 10 second timeout
+        });
+
+        actualResponseTime = Date.now() - pingStartTime;
+        pingResult = {
+          success: true,
+          status: response.status,
+          statusText: response.statusText,
+          headers: Object.fromEntries(response.headers.entries()),
+        };
+      } catch (error: any) {
+        actualResponseTime = Date.now() - pingStartTime;
+        pingResult = {
+          success: false,
+          error: error.message,
+          code: error.code || "UNKNOWN_ERROR",
+        };
+      }
+
+      const totalResponseTime = Date.now() - startTime;
+
+      if (pingResult.success) {
+        // Successful ping
+        const pingData = {
+          status: "alive",
+          appId: appId,
+          appName: application.name,
+          url: urlToPing,
+          timestamp: new Date().toISOString(),
+          responseTime: actualResponseTime,
+          totalResponseTime: totalResponseTime,
+          httpStatus: pingResult.status,
+          httpStatusText: pingResult.statusText,
+        };
+
+        // Log successful ping
+        createLog(appId, application.name, {
+          logType: "info",
+          message: `Application pinged successfully - ${pingResult.status} ${pingResult.statusText}`,
+          statusCode: 200,
+          responseTime: totalResponseTime,
+          endpoint: `/api/v1/application/${appId}/ping`,
+          method: "GET",
+          additionalData: {
+            action: "ping",
+            pingSource: "external",
+            targetUrl: urlToPing,
+            actualResponseTime: actualResponseTime,
+            httpStatus: pingResult.status,
+            httpStatusText: pingResult.statusText,
+          },
+        }).catch((err) => console.log("[WARN] Failed to log ping:", err));
+
+        // Update application health metrics (uptime + lastChecked)
+        updateAppHealth(appId, true).catch((err) =>
+          console.log("[WARN] Failed to update app health metrics:", err)
+        );
+
+        return sendSuccess(res, pingData);
+      } else {
+        // Failed ping
+        const pingData = {
+          status: "down",
+          appId: appId,
+          appName: application.name,
+          url: urlToPing,
+          timestamp: new Date().toISOString(),
+          responseTime: actualResponseTime,
+          totalResponseTime: totalResponseTime,
+          error: pingResult.error,
+          errorCode: pingResult.code,
+        };
+
+        // Log failed ping
+        createLog(appId, application.name, {
+          logType: "error",
+          message: `Application ping failed - ${pingResult.error}`,
+          statusCode: 503,
+          responseTime: totalResponseTime,
+          endpoint: `/api/v1/application/${appId}/ping`,
+          method: "GET",
+          additionalData: {
+            action: "ping_failed",
+            targetUrl: urlToPing,
+            actualResponseTime: actualResponseTime,
+            error: pingResult.error,
+            errorCode: pingResult.code,
+          },
+        }).catch((err) => console.log("[WARN] Failed to log ping error:", err));
+
+        // Update application health metrics (downtime + lastChecked)
+        updateAppHealth(appId, false).catch((err) =>
+          console.log("[WARN] Failed to update app health metrics:", err)
+        );
+
+        return res.status(503).json({
+          success: false,
+          message: "Application is down",
+          statusCode: 503,
+          data: pingData,
+        });
+      }
     } catch (error: any) {
       const responseTime = Date.now() - startTime;
 
-      // Log the ping failure
+      // Log the ping system error
       createLog(appId, `Application ${appId}`, {
         logType: "error",
-        message: "Application ping failed",
+        message: "Ping system error occurred",
         statusCode: 500,
         responseTime,
         endpoint: `/api/v1/application/${appId}/ping`,
         method: "GET",
         additionalData: {
-          action: "ping_failed",
+          action: "ping_system_error",
           error: error.message,
+          stack: error.stack,
         },
       }).catch((err) => console.log("[WARN] Failed to log ping error:", err));
 
-      // Update application health metrics (downtime + lastChecked) since ping failed
+      // Update application health metrics (downtime + lastChecked)
       updateAppHealth(appId, false).catch((err) =>
         console.log("[WARN] Failed to update app health metrics:", err)
       );
 
-      return sendInternalServerError(res, "Ping failed", error.message);
+      return sendInternalServerError(res, "Ping system error", error.message);
     }
   }
 );
