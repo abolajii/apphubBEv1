@@ -5,7 +5,7 @@ import { createLog, updateAppHealth } from "./integration";
 import { sequelize } from "./config/database";
 import { serverConfig } from "./config/index";
 
-import cors from "cors";
+import cors, { CorsOptions } from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
@@ -19,14 +19,62 @@ app.use(helmet());
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
+  skip: (req: Request) => req.method === "OPTIONS",
 });
 app.use("/api/", limiter);
 
-app.use(
-  cors({
-    origin: "http://apphub.inabsolutions.com",
-  })
-);
+const corsOptions: CorsOptions = {
+  origin: (
+    origin: string | undefined,
+    callback: (err: Error | null, allow?: boolean) => void
+  ) => {
+    const allowedOrigins = [
+      "https://apphub.inabsolutions.com",
+      "http://apphub.inabsolutions.com",
+    ];
+
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    try {
+      const host = new URL(origin).host;
+      const isAllowed =
+        allowedOrigins.includes(origin) || /\.vercel\.app$/i.test(host);
+
+      return callback(null, isAllowed);
+    } catch (_e) {
+      // If parsing fails, deny
+      return callback(new Error("Not allowed by CORS"));
+    }
+  },
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  credentials: true,
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+// Handle preflight without a path pattern to avoid path-to-regexp issues
+app.use((req: Request, res: Response, next): void => {
+  if (req.method === "OPTIONS") {
+    const requestOrigin = (req.headers["origin"] as string) || "*";
+    res.header("Access-Control-Allow-Origin", requestOrigin);
+    res.header("Vary", "Origin");
+    res.header(
+      "Access-Control-Allow-Methods",
+      "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+    );
+    res.header(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, X-Requested-With"
+    );
+    res.header("Access-Control-Allow-Credentials", "true");
+    res.status(204).end();
+    return;
+  }
+  next();
+});
 
 app.use(morgan("combined"));
 app.use(express.json({ limit: "10mb" }));
