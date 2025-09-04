@@ -123,6 +123,68 @@ app.use((req: Request, res: Response, next) => {
 
 app.use("/api/v1", apiRoutes);
 
+app.get(
+  "/api/v1/application/:appId/ping",
+  async (req: Request, res: Response) => {
+    const startTime = Date.now();
+    const { appId } = req.params;
+
+    try {
+      const responseTime = Date.now() - startTime;
+      const pingData = {
+        status: "pinged",
+        appId: appId,
+        timestamp: new Date().toISOString(),
+        responseTime: responseTime,
+      };
+
+      // Log the ping
+      createLog(appId, `Application ${appId}`, {
+        logType: "info",
+        message: "Application pinged successfully",
+        statusCode: 200,
+        responseTime,
+        endpoint: `/api/v1/application/${appId}/ping`,
+        method: "GET",
+        additionalData: {
+          action: "ping",
+          pingSource: "external",
+        },
+      }).catch((err) => console.log("[WARN] Failed to log ping:", err));
+
+      // Update application health metrics (uptime + lastChecked) since ping was successful
+      updateAppHealth(appId, true).catch((err) =>
+        console.log("[WARN] Failed to update app health metrics:", err)
+      );
+
+      return sendSuccess(res, pingData);
+    } catch (error: any) {
+      const responseTime = Date.now() - startTime;
+
+      // Log the ping failure
+      createLog(appId, `Application ${appId}`, {
+        logType: "error",
+        message: "Application ping failed",
+        statusCode: 500,
+        responseTime,
+        endpoint: `/api/v1/application/${appId}/ping`,
+        method: "GET",
+        additionalData: {
+          action: "ping_failed",
+          error: error.message,
+        },
+      }).catch((err) => console.log("[WARN] Failed to log ping error:", err));
+
+      // Update application health metrics (downtime + lastChecked) since ping failed
+      updateAppHealth(appId, false).catch((err) =>
+        console.log("[WARN] Failed to update app health metrics:", err)
+      );
+
+      return sendInternalServerError(res, "Ping failed", error.message);
+    }
+  }
+);
+
 app.get("/", async (req: Request, res: Response) => {
   return sendSuccess(res, {
     message: "Hello, Setup for Applogger with Express on Vercel!",
@@ -159,6 +221,11 @@ app.get("/health", async (req: Request, res: Response) => {
       },
     }).catch((err) => console.log("[WARN] Failed to log health check:", err));
 
+    // Update application health metrics (uptime + lastChecked) since health check was successful
+    updateAppHealth(appConfig.appId, true).catch((err) =>
+      console.log("[WARN] Failed to update app health metrics:", err)
+    );
+
     return sendSuccess(res, healthData);
   } catch (error: any) {
     const responseTime = Date.now() - startTime;
@@ -178,6 +245,11 @@ app.get("/health", async (req: Request, res: Response) => {
       },
     }).catch((err) =>
       console.log("[WARN] Failed to log health check error:", err)
+    );
+
+    // Update application health metrics (downtime + lastChecked) since health check failed
+    updateAppHealth(appConfig.appId, false).catch((err) =>
+      console.log("[WARN] Failed to update app health metrics:", err)
     );
 
     return sendInternalServerError(res, "Health check failed", {
